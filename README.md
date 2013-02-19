@@ -23,7 +23,10 @@ system since input checking isn't very thorough.
 
 ## Build
 
-go build -o nschroot nschroot.go
+    make
+    make test
+    make clean
+    make binaries
 
 ## Example
 
