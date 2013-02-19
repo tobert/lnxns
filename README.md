@@ -5,6 +5,9 @@
 This is brand-new software. I've tested it minimally before pushing to Github. Do not
 expect signatures and layout to be consistent until this note disappears.
 
+Currently(2013-02-19), nschroot seems to work fine as root. Cgroups aren't there yet, but I should
+have a workable API soon.
+
 ## Requirements
 
 Linux >= 2.6.24 with:
