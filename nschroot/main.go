@@ -5,7 +5,7 @@
 package main
 
 import (
-	"./src/lnxns"
+	"../src/lnxns"
 	"fmt"
 	"os"
 	"syscall"
