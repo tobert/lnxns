@@ -32,6 +32,11 @@ func NewVfs(mpath string) (*Vfs, error) {
 	return &vfs, nil
 }
 
+// return the VFS path as a string
+func (vfs *Vfs) Path() string {
+	return string(*vfs)
+}
+
 // read a parameter as a string, this will work for any of the files
 // e.g. vfs.GetString("sys/net/ipv4/tcp_congestion_control") = "cubic"
 func (vfs *Vfs) GetString(name string) (value string, err error) {
@@ -87,8 +92,15 @@ func (vfs *Vfs) GetMapList(name string, keyIndex int) (values map[string][]strin
 	return
 }
 
+// write a string
 func (vfs *Vfs) SetString(name string, value string) (err error) {
 	return vfs.write(name, value)
+}
+
+// list directories in the root of the Vfs
+func (vfs *Vfs) Dirs() ([]string, error) {
+	// TODO: THIS IS A STUB
+	return []string{"memory", "cpu"}, nil
 }
 
 // read a file line-by-line calling the provided function for each line

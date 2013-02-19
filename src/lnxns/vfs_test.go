@@ -6,6 +6,7 @@ package lnxns_test
 
 import (
 	"../../src/lnxns"
+	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -27,7 +28,7 @@ func TestNewVfs(t *testing.T) {
 		t.Fatalf("NewVfs returned a Vfs when it shouldn't have.")
 	}
 
-	tmpDir := os.TempDir()
+	tmpDir, _ := ioutil.TempDir(os.TempDir(), "test-lnxns-vfs")
 	// TODO: find a better tmpdir function
 	tmpPath := path.Join(tmpDir, "test-lnxns")
 	os.Mkdir(tmpPath, 0755)
