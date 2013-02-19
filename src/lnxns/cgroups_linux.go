@@ -7,9 +7,9 @@ package lnxns
 import (
 	"fmt"
 	"io/ioutil"
-	"strings"
-	"path"
 	"os"
+	"path"
+	"strings"
 )
 
 type Cgroup struct {
