@@ -15,8 +15,17 @@ import (
 	"strings"
 )
 
+var sysfsRequires = []string{"bus", "class", "dev", "devices", "fs"}
+var procfsRequires = []string{
+	"cmdline", "cpuinfo", "filesystems", "loadavg", "meminfo",
+	"self", "stat", "uptime", "version", "vmstat",
+}
+
+// Vfs is for interacting with virtual filesystems like /proc, /sys,
+// configfs, and cgroups.
 type Vfs string
 
+// create a new Vfs handle, checks that it exists, does not verify
 func NewVfs(mpath string) (*Vfs, error) {
 	var vfs Vfs = Vfs(mpath)
 
@@ -36,6 +45,36 @@ func NewVfs(mpath string) (*Vfs, error) {
 func (vfs *Vfs) Path() string {
 	return string(*vfs)
 }
+
+// check if the Vfs is pointing at an instance of proc
+// A proc Vfs must point at the root of the proc mountpoint, e.g. "/proc".
+func (vfs *Vfs) IsProcFs() (isProc bool, err error) {
+	for _, required := range procfsRequires {
+		st, err := os.Stat(path.Join(vfs.Path(), required))
+		if err != nil || !st.Mode().IsDir() {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
+// check if the Vfs is pointing at an instance of sysfs
+// A sysfs Vfs must point at the root of the sysfs mountpoint, e.g. "/sys".
+func (vfs *Vfs) IsSysFs() (bool, error) {
+	for _, required := range sysfsRequires {
+		st, err := os.Stat(path.Join(vfs.Path(), required))
+		if err != nil || !st.Mode().IsDir() {
+			return false, err
+		}
+	}
+
+	return true, nil
+}
+
+// check if the Vfs is pointing at some kind of cgroup fs
+//func (vfs *Vfs) IsCgroupFs() (isProc bool, err error) {
+//}
 
 // read a parameter as a string, this will work for any of the files
 // e.g. vfs.GetString("sys/net/ipv4/tcp_congestion_control") = "cubic"
@@ -100,7 +139,14 @@ func (vfs *Vfs) SetString(name string, value string) (err error) {
 // list directories in the root of the Vfs
 func (vfs *Vfs) Dirs() ([]string, error) {
 	// TODO: THIS IS A STUB
+	fmt.Printf("Stub! Vfs.Dirs()\n")
 	return []string{"memory", "cpu"}, nil
+}
+
+func (vfs *Vfs) Files() ([]string, error) {
+	// TODO: THIS IS A STUB
+	fmt.Printf("Stub! Vfs.Files()\n")
+	return []string{"cgroup.procs", "cpuset.mem_hardwall", "cpuset.memory_spread_page", "cpuset.sched_relax_domain_level", "tasks"}, nil
 }
 
 // read a file line-by-line calling the provided function for each line
