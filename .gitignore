@@ -3,4 +3,5 @@
 *.a
 *.so
 *.exe
-nschroot
+nschroot/nschroot
+contain/contain
