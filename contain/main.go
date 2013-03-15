@@ -55,6 +55,8 @@ func init() {
 
 func main() {
 	flag.Parse()
+	// TODO: set environment variables and pretend to be LXC
+	// http://cgit.freedesktop.org/systemd/systemd/tree/src/shared/virt.c#n171
 }
 
 // vim: ts=4 sw=4 noet tw=120 softtabstop=4
