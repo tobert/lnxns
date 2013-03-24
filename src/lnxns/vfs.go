@@ -41,6 +41,14 @@ func NewVfs(mpath string) (*Vfs, error) {
 	return &vfs, nil
 }
 
+func ProcFs() *Vfs {
+	proc, err := NewVfs("/proc")
+	if err != nil {
+		panic(fmt.Sprintf("/proc unavailable: %s", err))
+	}
+	return proc
+}
+
 // return the VFS path as a string
 func (vfs *Vfs) Path() string {
 	return string(*vfs)
@@ -121,6 +129,8 @@ func (vfs *Vfs) GetIntList(name string) (values []int, err error) {
 // item, split by whitespace, is put in an array of values. The keyIndex is not deleted
 // from the list.
 func (vfs *Vfs) GetMapList(name string, keyIndex int) (values map[string][]string, err error) {
+	values = make(map[string][]string)
+
 	parser := func(parts []string) {
 		var key string = parts[keyIndex]
 		values[key] = parts
@@ -169,7 +179,7 @@ func (vfs *Vfs) slurp(name string, cb func([]string)) (err error) {
 		line, err = reader.ReadString('\n')
 		if line != "" {
 			var parts []string
-			for _, part := range strings.Split(line, " ") {
+			for _, part := range strings.Fields(line) {
 				parts = append(parts, strings.TrimSpace(part))
 			}
 			cb(parts)
