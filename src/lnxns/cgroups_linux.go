@@ -9,13 +9,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Cgroup struct {
-	Name        string
-	vfs			*Vfs
+	Name string
+	vfs  *Vfs
 }
 
 // create a new cgroup, the Vfs provided should already point to the root of
@@ -26,7 +26,7 @@ type Cgroup struct {
 func NewCgroup(v *Vfs, name string) (*Cgroup, error) {
 	cg := Cgroup{
 		Name: name,
-		vfs: v,
+		vfs:  v,
 	}
 
 	// if the tasks file exists, this is either a monolithic mount or a single controller
@@ -74,7 +74,7 @@ func ListControllers() (list []string) {
 }
 
 // moves tasks back to the global group and deletes the directory
-func (cg *Cgroup) Destroy() (error) {
+func (cg *Cgroup) Destroy() error {
 	for _, ctl := range ListControllers() {
 		tasks, err := cg.vfs.GetIntList(path.Join(ctl, cg.Name, "tasks"))
 
