@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# Mount cgroups on /sys/fs/cgroup in the same way that systemd does it.
+#
+# This can be called from upstart or as a regular init script on distros
+# with legacy init systems.
+#
+# For upstart, just set the only dependency to:
+# start on mounted MOUNTPOINT=/sys
+#
+### BEGIN INIT INFO
+# Provides:          mount-cgroups
+# Required-Start:    $local_fs
+# Required-Stop:     $local_fs
+# Should-Start:
+# Should-Stop:
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Mount cgroup virtual filesystems.
+### END INIT INFO
+
+MOUNT_OPTS="rw,nosuid,nodev,noexec,relatime"
+
+die () { echo "$*" ; exit 1 ; }
+
+# have to mount a tmpfs first
+if ! (grep -q 'tmpfs /sys/fs/cgroup' /proc/mounts) ; then
+  mount -t tmpfs -o uid=0,gid=0,mode=0755 cgroups /sys/fs/cgroup
+fi
+
+for ctl in $(awk '/^[a-z]/{print $1}' < /proc/cgroups)
+do
+  # systemd mounts cpu,cpuacct on one path and creates symlinks
+  case "$ctl" in
+    "cpuacct")
+      continue
+      ;;
+    "cpu")
+      ctl="cpu,cpuacct"
+      ;;
+  esac
+
+  # mount anything that's not already in /proc/mounts
+  if ! (grep -q "cgroup .*$ctl" /proc/mounts) ; then
+    mkdir -p /sys/fs/cgroup/$ctl
+    mount -t cgroup -o "${MOUNT_OPTS},${ctl}" cgroup /sys/fs/cgroup/$ctl || die "could not mount $ctl"
+  fi
+done
+
+[ -e /sys/fs/cgroup/cpu ]     || ln -nfs /sys/fs/cgroup/cpu,cpuacct /sys/fs/cgroup/cpu
+[ -e /sys/fs/cgroup/cpuacct ] || ln -nfs /sys/fs/cgroup/cpu,cpuacct /sys/fs/cgroup/cpuacct
+
+exit 0
