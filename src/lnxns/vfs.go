@@ -23,11 +23,25 @@ var procfsRequires = []string{
 
 // Vfs is for interacting with virtual filesystems like /proc, /sys,
 // configfs, and cgroups.
-type Vfs string
+type Vfs struct {
+	Device     string
+	Mountpoint string
+	Filesystem string
+	Options    []string
+}
 
 // create a new Vfs handle, checks that it exists, does not verify
+// if it's a valid fs beyond making sure it's a directory, since it's
+// useful to test against temp dirs or even use fake vfs (fuse)
 func NewVfs(mpath string) (*Vfs, error) {
-	var vfs Vfs = Vfs(mpath)
+	// if it's a mounted path, return with all options set via /proc/mounts
+	mtab := Mounts()
+	if _, ok := mtab[mpath]; ok {
+		return mtab[mpath], nil
+	}
+
+	// otherwise, the user will have to set other fields as needed
+	var vfs Vfs = Vfs{Mountpoint: mpath}
 
 	rs, err := os.Stat(mpath)
 	if err != nil {
@@ -41,24 +55,56 @@ func NewVfs(mpath string) (*Vfs, error) {
 	return &vfs, nil
 }
 
-func ProcFs() *Vfs {
-	proc, err := NewVfs("/proc")
-	if err != nil {
-		panic(fmt.Sprintf("/proc unavailable: %s", err))
-	}
-	return proc
-}
-
 // return the VFS path as a string
 func (vfs *Vfs) Path() string {
-	return string(*vfs)
+	return vfs.Mountpoint
+}
+
+// returns a Vfs set up for working with /proc, assuming it's good to go
+func ProcFs() *Vfs {
+	proc := Vfs{
+		Device:     "proc",
+		Mountpoint: "/proc",
+		Filesystem: "proc",
+		Options:    []string{"rw"},
+	}
+
+	return &proc
+}
+
+func SysFs() *Vfs {
+	sys, err := NewVfs("/sys")
+	if err != nil {
+		panic(fmt.Sprintf("/sys unavailable: %s", err))
+	}
+	return sys
+}
+
+// parse /proc/mounts and return a map of mountpoint: *Vfs
+func Mounts() map[string]*Vfs {
+	var ret = make(map[string]*Vfs)
+
+	mtab, err := ProcFs().GetMapList("mounts", 1)
+	assertNil(err, "Could read /proc/mounts")
+
+	for mp, opts := range mtab {
+		v := Vfs{
+			Device:     opts[0],
+			Mountpoint: opts[1],
+			Filesystem: opts[2],
+			Options:    strings.Split(opts[3], ","),
+		}
+		ret[mp] = &v
+	}
+
+	return ret
 }
 
 // check if the Vfs is pointing at an instance of proc
 // A proc Vfs must point at the root of the proc mountpoint, e.g. "/proc".
-func (vfs *Vfs) IsProcFs() (isProc bool, err error) {
+func (vfs *Vfs) IsProcFs() (bool, error) {
 	for _, required := range procfsRequires {
-		st, err := os.Stat(path.Join(vfs.Path(), required))
+		st, err := os.Stat(path.Join(vfs.Mountpoint, required))
 		if err != nil || !st.Mode().IsDir() {
 			return false, err
 		}
@@ -71,7 +117,7 @@ func (vfs *Vfs) IsProcFs() (isProc bool, err error) {
 // A sysfs Vfs must point at the root of the sysfs mountpoint, e.g. "/sys".
 func (vfs *Vfs) IsSysFs() (bool, error) {
 	for _, required := range sysfsRequires {
-		st, err := os.Stat(path.Join(vfs.Path(), required))
+		st, err := os.Stat(path.Join(vfs.Mountpoint, required))
 		if err != nil || !st.Mode().IsDir() {
 			return false, err
 		}
@@ -81,8 +127,32 @@ func (vfs *Vfs) IsSysFs() (bool, error) {
 }
 
 // check if the Vfs is pointing at some kind of cgroup fs
-//func (vfs *Vfs) IsCgroupFs() (isProc bool, err error) {
-//}
+func (vfs *Vfs) IsCgroupFs() (bool, error) {
+	mtab := Mounts()
+
+	if _, ok := mtab[vfs.Mountpoint]; ok {
+		switch mtab[vfs.Mountpoint].Filesystem {
+		// systemd style mounts each controller under a tmpfs in /sys/fs/cgroup
+		case "tmpfs":
+			// if cpuset is all there and has a tasks file, call it good enough
+			if _, err := os.Stat(path.Join(vfs.Mountpoint, "cpuset", "tasks")); err == nil {
+				return true, nil
+			}
+		// but some people like to mount it monolithic, e.g. mount -t cgroup none /cgroups
+		case "cgroup":
+			if _, err := os.Stat(path.Join(vfs.Mountpoint, "tasks")); err == nil {
+				return true, nil
+			} else {
+				panic("Invalid cgroup filesystem! All cgroup mountpoints must have a 'tasks' file.")
+			}
+		default:
+			return false, errors.New("not a supported filesystem")
+		}
+
+	}
+
+	return false, errors.New("Does not appear to be a mountpoint.")
+}
 
 // read a parameter as a string, this will work for any of the files
 // e.g. vfs.GetString("sys/net/ipv4/tcp_congestion_control") = "cubic"
@@ -163,7 +233,7 @@ func (vfs *Vfs) Files() ([]string, error) {
 func (vfs *Vfs) slurp(name string, cb func([]string)) (err error) {
 	var (
 		file *os.File
-		pt   string = path.Join(string(*vfs), name)
+		pt   string = path.Join(vfs.Mountpoint, name)
 	)
 
 	if file, err = os.Open(pt); err != nil {
@@ -198,7 +268,7 @@ func (vfs *Vfs) slurp(name string, cb func([]string)) (err error) {
 func (vfs *Vfs) write(name string, value string) (err error) {
 	var (
 		file *os.File
-		pt   string = path.Join(string(*vfs), name)
+		pt   string = path.Join(vfs.Mountpoint, name)
 	)
 
 	if file, err = os.Create(pt); err != nil {

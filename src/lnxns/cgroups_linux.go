@@ -10,97 +10,152 @@ import (
 	"os"
 	"path"
 	"strings"
+	"strconv"
 )
 
 type Cgroup struct {
 	Name        string
-	root        *Vfs
-	isMountRoot bool // is this a mount root or unified mount?
-	controllers []string
+	vfs			*Vfs
 }
 
-// create a new cgroup, the Vfs provided should already point
-// to the root of cgroup mount(s).  If the cgroup already exists
-// it is _not_ read automatically, you should call .Load() if you
-// want to start with what the kernel has.
-// root, err := FindCgroupRoot()
-// root, err := NewVfs("/sys/fs/cgroup")
-// root, err := NewVfs("/sys/fs/cgroup/memory")
-// cg := NewCgroup(root, "tobert")
-func NewCgroup(vfs *Vfs, name string) (cg *Cgroup, err error) {
-	// see if we're in a controller mount or a root
-	// start by looking for a "tasks" file, if it's there, vfs is either a single
-	// controller mount or monolithic, either way just scan the files to see which
-	// controllers are enabled and call it done. Otherwise, it's a root like /sys/fs/cgroup
-	// and all path construction is a little different.
+// create a new cgroup, the Vfs provided should already point to the root of
+// cgroup mount(s).  If the cgroup already exists it is not read automatically,
+// you should call .Load() if you want to start with what the kernel has.
+// Only systemd-style per-controller mounts are supported at this time.
+// cg := NewCgroup(FindCgroupVfs(), "tobert")
+func NewCgroup(v *Vfs, name string) (*Cgroup, error) {
+	cg := Cgroup{
+		Name: name,
+		vfs: v,
+	}
 
-	// TODO: Write this for real ...
-	taskFile := path.Join(vfs.Path(), "tasks")
+	// if the tasks file exists, this is either a monolithic mount or a single controller
+	taskFile := path.Join(v.Path(), "tasks")
+	_, err := os.Stat(taskFile)
+	if err == nil {
+		panic(fmt.Sprintf("Found a tasks file in %s: Monolithic and single controller mounts are not supported. Try /sys/fs/cgroup.", taskFile))
+	}
 
-	rs, err := os.Stat(taskFile)
+	for _, ctl := range ListControllers() {
+		err = os.Mkdir(path.Join(v.Path(), ctl, name), 0755)
+		// ignore EEXIST, it's fine and common
+		if os.IsExist(err) {
+			continue
+		} else if err != nil {
+			fmt.Printf("Could not create directory: %s\n", err)
+		}
+	}
+
+	return &cg, nil
+}
+
+// Returns a list of available cgroups in the running host kernel. Reads /proc/cgroups.
+// e.g. [net_cls blkio devices cpuset cpuacct memory freezer cpu]
+func ListControllers() (list []string) {
+	_, err := os.Stat("/proc/cgroups")
 	if err != nil {
-		fmt.Printf("no such file!? %s\n", err)
-		return
+		panic("Could not stat /proc/cgroups. Your kernel does not seem to support cgroups.")
 	}
-	rs.Mode()
-	return
-}
 
-// search for controllers in the root Vfs and return them
-func ListAvailableControllers() (list []string, err error) {
-	return
-}
-
-func (cg *Cgroup) AddController() {
-	return
-}
-
-func (cg *Cgroup) Controllers() (list []string) {
-	for _, vfs := range cg.controllers {
-		list = append(list, string(vfs))
+	rows, err := ProcFs().GetMapList("cgroups", 0)
+	if err != nil {
+		panic("BUG: Could not parse /proc/cgroups.")
 	}
-	return
+
+	for key, _ := range rows {
+		if strings.HasPrefix(key, "#") {
+			continue
+		} else {
+			list = append(list, key)
+		}
+	}
+
+	return list
+}
+
+// moves tasks back to the global group and deletes the directory
+func (cg *Cgroup) Destroy() (error) {
+	for _, ctl := range ListControllers() {
+		tasks, err := cg.vfs.GetIntList(path.Join(ctl, cg.Name, "tasks"))
+
+		// move tasks back to the root controller
+		for _, task := range tasks {
+			cg.vfs.SetString(path.Join(ctl, "tasks"), strconv.Itoa(task))
+			// check errors?
+		}
+
+		// remove the control group
+		err = os.Remove(path.Join(cg.vfs.Path(), ctl, cg.Name))
+		if err != nil {
+			fmt.Printf("Could not remove directory: %s\n", err)
+		}
+	}
+
+	return nil
+}
+
+// return the full path to a control file. Even though the controller prefix is redundant,
+// it's required since not all files in a control directory have a prefix.
+// e.g.
+// cg := lnxns.NewCgroup(FindCgroupVfs(), "junk")
+// cg.ctlPath("memory", "memory.swappiness") == "/sys/fs/cgroup/memory/junk/memory.swappiness"
+func (cg *Cgroup) ctlPath(controller string, file string) (p string) {
+	p = path.Join(cg.vfs.Path(), controller, cg.Name, file)
+
+	// TODO: remove this debug output & stat someday
+	_, err := os.Stat(p)
+	if err != nil {
+		fmt.Printf("File '%s' does not exist: %s", p, err)
+	}
+
+	return p
 }
 
 // add a process by pid, automatically getting all threads
-func (cg *Cgroup) AddProcess(tid int) {
-	return
+func (cg *Cgroup) AddProcess(pid int) {
+	for _, name := range ListControllers() {
+		taskFile := path.Join(name, "tasks")
+		cg.vfs.SetString(taskFile, strconv.Itoa(pid))
+
+		pid_tasks, _ := ioutil.ReadDir(path.Join("/proc", strconv.Itoa(pid), "task"))
+		for _, fi := range pid_tasks {
+			cg.vfs.SetString(taskFile, fi.Name())
+		}
+	}
 }
 
 // add a task by tid/pid, does not recurse
 func (cg *Cgroup) AddTask(tid int) {
-	return
-}
-
-func (cg *Cgroup) Tasks() (list []int) {
-	return
-}
-
-// load settings from an existing cgroup, returns ENOENT if the
-// cgroup doesn't already exist
-func (cg *Cgroup) Load() (err error) {
-	return
-}
-
-// compare in-memory values to what the kernel has, returns
-// a bool and a string diff (format is not guaranteed)
-func (cg *Cgroup) Verify() (match bool, diff string, err error) {
-	return
-}
-
-func (cg *Cgroup) Apply() (err error) {
-	return
+	for _, ctl := range ListControllers() {
+		taskFile := cg.ctlPath(ctl, "tasks")
+		cg.vfs.SetString(taskFile, strconv.Itoa(tid))
+	}
 }
 
 // finds where cgroups are mounted and returns the path string
-func FindCgroupRoot() (vfs *Vfs, err error) {
-	mtab, err := ioutil.ReadFile("/proc/mounts")
-	assertNil(err, "Could read /proc/mounts")
-
-	for mount := range strings.Split(string(mtab), "\n") {
-		fmt.Print(mount)
+// /sys/fs/cgroup is tried first, then search /proc/mounts
+func FindCgroupVfs() *Vfs {
+	v, err := NewVfs("/sys/fs/cgroup")
+	if err == nil && v.Filesystem == "tmpfs" {
+		if iscg, _ := v.IsCgroupFs(); iscg {
+			return v
+		}
 	}
-	return
+
+	mtab := Mounts()
+	for mp, vfs := range mtab {
+		if vfs.Filesystem == "cgroup" {
+			parent := path.Base(mp)
+			v, err = NewVfs(parent)
+			if err == nil {
+				// TODO: test this somewhere ... my machines are all systemd
+				// all my Ubuntu machines are also modified to mount cgroups in the systemd style
+				return v
+			}
+		}
+	}
+
+	return nil
 }
 
 // vim: ts=4 sw=4 noet tw=120 softtabstop=4

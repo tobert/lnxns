@@ -6,6 +6,7 @@ package lnxns_test
 
 import (
 	"../../src/lnxns"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -23,6 +24,11 @@ func TestCgroup(t *testing.T) {
 	vr, _ := lnxns.NewVfs(tmpPath)
 	vr.SetString("memory/memory.swappiness", "0")
 	vr.SetString("memory/tasks", "123\n456\n789")
+}
+
+func TestFindCgroups(t *testing.T) {
+	vfs := lnxns.FindCgroupVfs()
+	fmt.Printf("VFS: %s\n", vfs)
 }
 
 // vim: ts=4 sw=4 noet tw=120 softtabstop=4
