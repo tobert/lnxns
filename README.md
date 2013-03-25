@@ -36,6 +36,16 @@ If busybox is installed, this should work
     touch /tmp/root/foobar
     go build -o nschroot nschroot.go && sudo ./nschroot /tmp/root /busybox ls
 
+To use the 'cgroup' utility to put a process into a cgroup:
+
+    sudo ./cgroup -name awesome -program /usr/bin/touch -env bar=baz -- /tmp/foo
+
+## TODO
+
+* 'contain' utility that executes inside a namespaced/cgrouped container
+* capabilities helpers
+* veth setup
+
 ## History
 
 * 2013-03-25: 'nschroot' and 'cgroup' are working
