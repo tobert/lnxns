@@ -5,3 +5,4 @@
 *.exe
 nschroot/nschroot
 contain/contain
+cgroup/cgroup
