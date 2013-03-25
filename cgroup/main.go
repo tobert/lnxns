@@ -37,14 +37,14 @@ func (env envMap) Set(value string) error {
 	return nil
 }
 
-var containerName string
+var cgroupName string
 var programFlag string
 var argumentsFlag string
 var envFlag envMap = make(envMap)
 var cgRoot string
 
 func init() {
-	flag.StringVar(&containerName, "name", "lnxns", "name of the container, must be a valid Linux directory name")
+	flag.StringVar(&cgroupName, "name", "lnxns", "name of the cgroup, must be a valid Linux directory name")
 	flag.Var(&envFlag, "env", "key=value environment variables")
 	flag.StringVar(&programFlag, "program", "", "the program to run in the container")
 	flag.StringVar(&cgRoot, "cg_root", "/sys/fs/cgroup", "path to where cgroups are mounted")
@@ -68,7 +68,7 @@ func main() {
 	}
 
 	// create a Cgroup
-	cg, _ := lnxns.NewCgroup(vfs, containerName)
+	cg, _ := lnxns.NewCgroup(vfs, cgroupName)
 
 	// add this process to the cgroup, children will inherit
 	cg.AddProcess(os.Getpid())
