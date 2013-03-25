@@ -63,7 +63,7 @@ func main() {
 	flag.Parse()
 
 	vfs, _ := lnxns.NewVfs(cgRoot)
-	if iscg, err := vfs.IsCgroupFs(); ! iscg {
+	if iscg, err := vfs.IsCgroupFs(); !iscg {
 		fmt.Printf("%s does not appear to be a cgroup filesystem: %s\n", cgRoot, err)
 	}
 
@@ -74,11 +74,11 @@ func main() {
 	cg.AddProcess(os.Getpid())
 
 	args := flag.Args()
-    argv := make([]string, len(args)+1)
-    argv[0] = programFlag
-    for i := range args {
-        argv[i+1] = args[i]
-    }
+	argv := make([]string, len(args)+1)
+	argv[0] = programFlag
+	for i := range args {
+		argv[i+1] = args[i]
+	}
 
 	fmt.Printf("syscall.Exec('%s', '%s', '%s')\n", programFlag, argv, envFlag)
 	err := syscall.Exec(programFlag, argv, os.Environ())
