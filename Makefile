@@ -9,6 +9,7 @@ all: test binaries
 fmt:
 	$(shell cd src/lnxns && go fmt)
 	$(shell cd nschroot  && go fmt)
+	$(shell cd cgroup    && go fmt)
 	$(shell cd contain   && go fmt)
 
 test:
@@ -16,9 +17,10 @@ test:
 
 binaries:
 	$(GO) build -o nschroot/nschroot nschroot/main.go
+	$(GO) build -o cgroup/cgroup cgroup/main.go
 	$(GO) build -o contain/contain contain/main.go
 
 clean:
-	rm -f nschroot/nschroot contain/contain
+	rm -f nschroot/nschroot cgroup/cgroup contain/contain
 
 # vim: ts=4 sw=4 noet tw=120 softtabstop=4
